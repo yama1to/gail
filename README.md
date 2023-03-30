@@ -1,16 +1,20 @@
+## Generative Adversarial Imitation Learning (GAIL)
+GANのように敵対的に学習を進行させる、逆強化学習
 
-# Training
-    1.環境の初期化
-    for num of epochs.
-        2.生成器の行動
-        3.識別器の学習
-        4.生成器の学習
-        5.結果の出力
+### discriminator.py
+識別器
 
-# Test
+### generator.py
+生成器
 
+### collect_data.py
+エキスパートデータの収集。
 
+### expert_data.py
+エキスパートデータの読み込み。
 
+### main.py
+識別器と生成器を学習する。
 
 
 
