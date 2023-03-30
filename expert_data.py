@@ -10,7 +10,7 @@ def load_expert_data(file_path):
     expert_states = torch.tensor(expert_states, dtype=torch.float32)
     expert_actions = torch.tensor(expert_actions, dtype=torch.float32)
 
-    return expert_states, expert_actions
+    return (expert_states, expert_actions)
 
 if __name__ == '__main__':
     expert_data_file = 'pendulum_expert_data.pkl'

@@ -9,7 +9,7 @@ import gym
 from expert_data import load_expert_data
 
 
-def train_gail(env, expert_data, generator, discriminator, num_epochs=1000, batch_size=64, g_lr=1e-4, d_lr=1e-4):
+def train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_size=64, g_lr=1e-4, d_lr=1e-4):
     expert_states, expert_actions = expert_data
     
     generator_optimizer = optim.Adam(generator.parameters(), lr=g_lr)
@@ -53,4 +53,4 @@ if __name__ == '__main__':
     generator = Generator(state_dim, action_dim, hidden_dim)
     discriminator = Discriminator(state_dim, action_dim, hidden_dim)
 
-    train_gail(env, expert_data, generator, discriminator)
+    train_gail(expert_data, generator, discriminator)
