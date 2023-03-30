@@ -5,18 +5,18 @@ import gym
 import numpy as np
 
 
-# 識別器の定義
 class Discriminator(nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden_dim):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(obs_dim + act_dim, hidden_dim),
+    def __init__(self, state_dim, action_dim, hidden_dim):
+        super(Discriminator, self).__init__()
+        self.network = nn.Sequential(
+            nn.Linear(state_dim + action_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
+            nn.Linear(hidden_dim, 1),
+            nn.Sigmoid()
         )
-
-    def forward(self, obs, act):
-        obs_act = torch.cat([obs, act], dim=1)
-        return self.model(obs_act)
+        
+    def forward(self, state, action):
+        state_action = torch.cat([state, action], dim=1)
+        return self.network(state_action)
