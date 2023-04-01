@@ -29,5 +29,5 @@ def collect_expert_data(env, model, num_episodes=100, save_path='expert_data.pkl
 if __name__ == '__main__':
     env = gym.make('Pendulum-v1')
     model = PPO.load('pretrained_ppo_pendulum')  # Load a pre-trained agent
-    expert_data = collect_expert_data(env, model, num_episodes=100, save_path='pendulum_expert_data.pkl')
+    expert_data = collect_expert_data(env, model, num_episodes=200, save_path='pendulum_expert_data.pkl')
     print(f'Expert data saved: {len(expert_data[0])} state-action pairs')

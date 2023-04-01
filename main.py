@@ -77,7 +77,7 @@ def test_generator_performance(c,generator, env, max_steps=1000):
 
     savefigure(c,rewardlist)
     savegif(c,step,state_data,render_data)
-    return total_reward
+    return total_reward,step
 
 def getTime():
     import datetime
@@ -136,8 +136,10 @@ def test_gail(c,generator,):
     # Generatorの性能テスト
     generator.eval()
     env = gym.make(c.gym_task)
-    total_reward = test_generator_performance(c,generator, env,c.test_max_steps)
+    total_reward,step = test_generator_performance(c,generator, env,c.test_max_steps)
+    mean_reward = total_reward / step 
     print(f'Total reward: {total_reward:.2f}')
+    print(f'Mean reward: {mean_reward:.2f}')
     env.close()
 
 
@@ -153,8 +155,8 @@ def main(c):
 
 class Config:
     def __init__(self) -> None:
-        self.savefig = False
-        self.savegif = False
+        self.savefig = True
+        self.savegif = True
         self.figs = "./figs/"+getTime()+"reward.png"
         self.gifs = './gifs/'+getTime()+'Pendulum_random.gif'
         self.gym_task = 'Pendulum-v1'
@@ -165,10 +167,10 @@ class Config:
         self.action_dim = self.env.action_space.shape[0]
         self.hidden_dim = 1000
 
-        self.num_epochs: int = 10000
+        self.num_epochs: int = 1000
         self.batch_size: int = 500
-        self.g_lr: float = 0.0001
-        self.d_lr: float = 0.0001
+        self.g_lr: float = 0.001
+        self.d_lr: float = 0.001
         
         self.test_max_steps: int = 1000
 
