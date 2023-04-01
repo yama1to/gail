@@ -14,14 +14,10 @@ def train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_siz
                g_lr=1e-4, d_lr=1e-4, reservoir_size=1000, spectral_radius=0.9, leaking_rate=0.3):
     expert_states, expert_actions = expert_data
     criterion = nn.BCELoss()
-
+    torch.autograd.set_detect_anomaly(True)
     # ジェネレータとディスクリミネータの最適化アルゴリズムを設定
     generator_optimizer = optim.Adam(generator.parameters(), lr=g_lr)
     discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=d_lr)
-
-    # ESNパラメータを設定
-    generator.set_reservoir_params(reservoir_size=reservoir_size, spectral_radius=spectral_radius, leaking_rate=leaking_rate)
-    discriminator.set_reservoir_params(reservoir_size=reservoir_size, spectral_radius=spectral_radius, leaking_rate=leaking_rate)
 
     # 訓練ループ
     for epoch in range(num_epochs):
@@ -46,6 +42,7 @@ def train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_siz
         # ジェネレータの更新
         generator_optimizer.zero_grad()
         generator_loss = -criterion(discriminator(expert_states_batch, generator_actions_batch), torch.zeros_like(generator_preds))
+        # print(generator_loss)
         generator_loss.backward(retain_graph=True)
         generator_optimizer.step()
 
@@ -62,7 +59,7 @@ def test_gail(c, generator, reservoir, esn_output_scaling, esn_washout, esn_init
     env.close()
 
 
-def test_generator_performance(c, generator, reservoir, output_scaling, washout, initial_state_scale, env, max_steps=1000):
+def test_generator_performance(c, generator, env, max_steps=1000):
     state = env.reset()
     total_reward = 0.0
     done = False
@@ -71,29 +68,27 @@ def test_generator_performance(c, generator, reservoir, output_scaling, washout,
     rewardlist = []
 
     state_data = []
-    render_data = []
-
-    # ESNの初期状態を設定
-    initial_state = torch.Tensor(np.random.uniform(low=-initial_state_scale, high=initial_state_scale, size=reservoir.n_reservoir)).unsqueeze(0)
+    render_data = [] # 最初の状態
+    # print(state.shape)
 
     while not done and step < max_steps:
-        # ESNの出力を計算
-        esn_output = reservoir(torch.Tensor(state).unsqueeze(0), initial_state=initial_state, washout=washout)
-        action = generator(esn_output * output_scaling)
+        theta = env.state[0].copy()
+        action = generator(torch.Tensor(state).view(1,3))
 
         next_state, reward, done, info = env.step(action.detach().numpy())
         state = next_state
         total_reward += reward
 
         rewardlist.append(reward)
-        state_data.append((state, action.item(), reward, done))
-        render_data.append(env.render(mode='rgb_array'))
+        state_data.append((theta, state, action.detach().numpy(), reward, done)) # 現在
+        render_data.append(env.render(mode='rgb_array')) # 次
 
         step += 1
 
-    savefigure(c, rewardlist)
-    savegif(c, step, state_data, render_data)
-    return total_reward
+    savefigure(c,rewardlist)
+    savegif(c,step,state_data,render_data)
+    return total_reward,step
+
 
 
 
@@ -117,35 +112,42 @@ def savegif(c,T,state_data,render_data):
     # print(T,len(state_data),len(render_data))
     # 作図処理を関数として定義
     def update(t):
+
+
         # 時刻tの状態を取得
         theta, state, action, reward, terminated = state_data[t]
         rgb_data = render_data[t]
-        
+
         # 状態ラベルを作成
         state_text = 't=' + str(t) + '\n'
         state_text += f'$\\theta$={theta:5.2f}, '
-        state_text += f'$\cos(\\theta)$={state[0]:5.2f}, '
-        state_text += f'$\\sin(\\theta)$={state[1]:5.2f}\n'
-        state_text += f'velocity={state[2]:6.3f}\n'
+        state_text += f'$\cos(\\theta)$={state[0].item():5.2f}, '
+        state_text += f'$\\sin(\\theta)$={np.format_float_positional(state[1], precision=2)}, ' # modify this line
+        state_text += f'velocity={np.format_float_positional(state[2], precision=3)}\n' # modify this line
         if t < T:
-            state_text += f'action={action:5.2f}, '
-            state_text += f'reward={reward:5.2f}, '
+            state_text += f'action={np.format_float_positional(action.item(), precision=2)}, ' # modify this line
+            state_text += f'reward={np.format_float_positional(reward, precision=2)}, ' # modify this line
         else:
-            state_text += 'action=' + str(action) + ', '
+            state_text += f'action={np.format_float_positional(action.item(), precision=2)}, '
             state_text += 'reward=' + str(reward) + ', '
         state_text += 'terminated:' + str(terminated)
-        
+
         # ペンデュラムを描画
         plt.imshow(rgb_data)
         plt.xticks(ticks=[])
         plt.yticks(ticks=[])
         plt.title(state_text, loc='left')
 
+
     # gif画像を作成
     anime = FuncAnimation(fig=fig, func=update, frames=T, interval=100)
 
     # gif画像を保存
-    anime.save(c.gifs, writer='pillow', dpi=100)
+    try:
+        anime.save(c.gifs, writer='pillow', dpi=100)
+    except Exception as e:
+        print(f'Error saving animation: {e}')
+
     plt.close()
 
 
@@ -153,28 +155,32 @@ def test_gail(c, generator):
     # Generatorの性能テスト
     generator.eval()
     env = gym.make(c.gym_task)
-    total_reward = test_generator_performance(c, generator, env, c.test_max_steps)
-    print(f'Total reward: {total_reward:.2f}')
+    total_reward,step = test_generator_performance(c, generator, env, c.test_max_steps)
+    mean_reward = total_reward / step 
+    print(f'Total reward: {total_reward.item():.2f}')
+    print(f'Mean reward: {mean_reward.item():.2f}')
     env.close()
 
 
 
 def main(c):
-    env = gym.make(c.gym_task)
     expert_data = load_expert_data(c.expert_data)
 
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.shape[0]
+    state_dim = c.env.observation_space.shape[0]
+    action_dim = c.env.action_space.shape[0]
     reservoir_dim = 100
 
-    generator = GeneratorESN(state_dim, action_dim, reservoir_dim)
+    generator = GeneratorESN(state_dim, action_dim, reservoir_dim,
+                             alpha_i=0.8,alpha_r=0.5,beta_i=0.8,beta_r=0.1)
 
-    discriminator = DiscriminatorESN(state_dim, action_dim, reservoir_dim)
+    discriminator = DiscriminatorESN(state_dim, action_dim, reservoir_dim,
+                                     alpha_i=0.1,alpha_r=0.9,beta_i=0.8,beta_r=0.1)
 
     train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_size=500, 
                g_lr=1e-4, d_lr=1e-4, reservoir_size=1000, spectral_radius=0.9, leaking_rate=0.3)
 
-    test_gail(env, generator)
+
+    test_gail(c, generator)
 
 
 class Config:
@@ -195,6 +201,7 @@ class Config:
         self.batch_size: int = 500
         self.g_lr: float = 0.001
         self.d_lr: float = 0.001
+
         
         self.test_max_steps: int = 1000
 
