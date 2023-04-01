@@ -70,19 +70,19 @@ def test_generator_performance(c, generator, env, max_steps=1000):
     state_data = []
     render_data = [] # 最初の状態
     # print(state.shape)
-
+    generator.reset_states()
     while not done and step < max_steps:
         theta = env.state[0].copy()
-        action = generator(torch.Tensor(state).view(1,3))
+        action = generator(torch.Tensor(state).view(1,c.state_dim))
 
         next_state, reward, done, info = env.step(action.detach().numpy())
         state = next_state
         total_reward += reward
+        # print(action.shape)
 
         rewardlist.append(reward)
-        state_data.append((theta, state, action.detach().numpy(), reward, done)) # 現在
+        state_data.append((theta, state, action.item(), reward, done)) # 現在
         render_data.append(env.render(mode='rgb_array')) # 次
-
         step += 1
 
     savefigure(c,rewardlist)
@@ -105,51 +105,44 @@ def savefigure(c,rewardlist):
     plt.cla()
 
 def savegif(c,T,state_data,render_data):
-    if c.savegif is False: return
+    if c.savegif is False: return 
+    
     # 図を初期化
     fig = plt.figure(figsize=(7, 7.5), facecolor='white')
     fig.suptitle(c.gym_task, fontsize=20)
     # print(T,len(state_data),len(render_data))
     # 作図処理を関数として定義
     def update(t):
-
-
         # 時刻tの状態を取得
         theta, state, action, reward, terminated = state_data[t]
         rgb_data = render_data[t]
-
+        
         # 状態ラベルを作成
         state_text = 't=' + str(t) + '\n'
-        state_text += f'$\\theta$={theta:5.2f}, '
-        state_text += f'$\cos(\\theta)$={state[0].item():5.2f}, '
-        state_text += f'$\\sin(\\theta)$={np.format_float_positional(state[1], precision=2)}, ' # modify this line
-        state_text += f'velocity={np.format_float_positional(state[2], precision=3)}\n' # modify this line
+        state_text += f'$\\theta$={float(theta):5.2f}, '
+        state_text += f'$\cos(\\theta)$={float(state[0]):5.2f}, '
+        state_text += f'$\\sin(\\theta)$={float(state[1]):5.2f}\n'
+        state_text += f'velocity={float(state[2]):6.3f}\n'
         if t < T:
-            state_text += f'action={np.format_float_positional(action.item(), precision=2)}, ' # modify this line
-            state_text += f'reward={np.format_float_positional(reward, precision=2)}, ' # modify this line
+            state_text += f'action={action:5.2f}, '
+            state_text += f'reward={float(reward):5.2f}, '
         else:
-            state_text += f'action={np.format_float_positional(action.item(), precision=2)}, '
+            state_text += 'action=' + str(action) + ', '
             state_text += 'reward=' + str(reward) + ', '
         state_text += 'terminated:' + str(terminated)
-
+        
         # ペンデュラムを描画
         plt.imshow(rgb_data)
         plt.xticks(ticks=[])
         plt.yticks(ticks=[])
         plt.title(state_text, loc='left')
 
-
     # gif画像を作成
-    anime = FuncAnimation(fig=fig, func=update, frames=T, interval=100)
+    anime = FuncAnimation(fig=fig, func=update, frames=T, interval=10)
 
     # gif画像を保存
-    try:
-        anime.save(c.gifs, writer='pillow', dpi=100)
-    except Exception as e:
-        print(f'Error saving animation: {e}')
-
+    anime.save(c.gifs, writer='pillow', dpi=100)
     plt.close()
-
 
 def test_gail(c, generator):
     # Generatorの性能テスト
@@ -157,8 +150,8 @@ def test_gail(c, generator):
     env = gym.make(c.gym_task)
     total_reward,step = test_generator_performance(c, generator, env, c.test_max_steps)
     mean_reward = total_reward / step 
-    print(f'Total reward: {total_reward.item():.2f}')
-    print(f'Mean reward: {mean_reward.item():.2f}')
+    print(f'Total reward: {total_reward:.2f}')
+    print(f'Mean reward: {mean_reward:.2f}')
     env.close()
 
 
@@ -169,6 +162,7 @@ def main(c):
     state_dim = c.env.observation_space.shape[0]
     action_dim = c.env.action_space.shape[0]
     reservoir_dim = 100
+    print(state_dim,action_dim,reservoir_dim)
 
     generator = GeneratorESN(state_dim, action_dim, reservoir_dim,
                              alpha_i=0.8,alpha_r=0.5,beta_i=0.8,beta_r=0.1)
@@ -176,7 +170,7 @@ def main(c):
     discriminator = DiscriminatorESN(state_dim, action_dim, reservoir_dim,
                                      alpha_i=0.1,alpha_r=0.9,beta_i=0.8,beta_r=0.1)
 
-    train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_size=500, 
+    train_gail(expert_data, generator, discriminator, num_epochs=c.num_epochs, batch_size=c.batch_size, 
                g_lr=1e-4, d_lr=1e-4, reservoir_size=1000, spectral_radius=0.9, leaking_rate=0.3)
 
 
@@ -197,7 +191,7 @@ class Config:
         self.action_dim = self.env.action_space.shape[0]
         self.hidden_dim = 1000
 
-        self.num_epochs: int = 1000
+        self.num_epochs: int = 100
         self.batch_size: int = 500
         self.g_lr: float = 0.001
         self.d_lr: float = 0.001

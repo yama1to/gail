@@ -167,7 +167,7 @@ class Config:
         self.action_dim = self.env.action_space.shape[0]
         self.hidden_dim = 1000
 
-        self.num_epochs: int = 1000
+        self.num_epochs: int = 10
         self.batch_size: int = 500
         self.g_lr: float = 0.001
         self.d_lr: float = 0.001
