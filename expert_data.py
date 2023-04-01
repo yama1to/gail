@@ -13,6 +13,6 @@ def load_expert_data(file_path):
     return (expert_states, expert_actions)
 
 if __name__ == '__main__':
-    expert_data_file = 'pendulum_expert_data.pkl'
+    expert_data_file = './prepare/pendulum_expert_data.pkl'
     expert_states, expert_actions = load_expert_data(expert_data_file)
     print(f'Loaded {len(expert_states)} expert states and {len(expert_actions)} expert actions')

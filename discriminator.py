@@ -24,24 +24,23 @@ class Discriminator(nn.Module):
 
 class DiscriminatorRNN(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim):
-        super(DiscriminatorRNN, self).__init__()
-
+        super().__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.hidden_dim = hidden_dim
-        
+
         self.rnn = nn.GRU(state_dim + action_dim, hidden_dim, batch_first=True)
         self.fc = nn.Linear(hidden_dim, 1)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, state, action):
-        batch_size = state.shape[0]
-        seq_len = state.shape[1]
-        h0 = torch.zeros(1, batch_size, self.hidden_dim)
-
-        x = torch.cat([state, action], dim=2)
-        out, _ = self.rnn(x, h0)
-        out = self.fc(out[:, -1, :])
+        # print(state.shape, action.shape)
+        state = state.view((-1,self.state_dim))
+        # print(state.shape, action.shape)
+        x = torch.cat([state, action], dim=1)
+        out, _ = self.rnn(x)
+        # print(out.shape)
+        out = self.fc(out)
         out = self.sigmoid(out)
-
         return out
+

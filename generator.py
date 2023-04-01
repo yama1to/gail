@@ -15,7 +15,7 @@ class Generator(nn.Module):
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, action_dim),
-            nn.Tanh()
+            nn.Sigmoid()
         )
         
     def forward(self, state):
@@ -23,22 +23,18 @@ class Generator(nn.Module):
 
 
 class GeneratorRNN(nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden_dim):
-        super(GeneratorRNN, self).__init__()
-        self.obs_dim = obs_dim
-        self.act_dim = act_dim
+    def __init__(self, state_dim, action_dim, hidden_dim):
+        super().__init__()
+        self.state_dim = state_dim
+        self.action_dim = action_dim
         self.hidden_dim = hidden_dim
+        self.rnn = nn.GRU(state_dim, hidden_dim)
+        self.fc = nn.Linear(hidden_dim, action_dim)
 
-        self.rnn = nn.LSTM(obs_dim + act_dim, hidden_dim)
-        self.fc = nn.Linear(hidden_dim, act_dim)
-    
-    def forward(self, obs, actions):
-        h = torch.zeros(1, obs.size(0), self.hidden_dim)
-        c = torch.zeros(1, obs.size(0), self.hidden_dim)
-        for t in range(obs.size(1)):
-            obs_t = obs[:, t, :].unsqueeze(1)
-            action_t = actions[:, t, :].unsqueeze(1)
-            x = torch.cat([obs_t, action_t], dim=2)
-            _, (h, c) = self.rnn(x, (h, c))
+    def forward(self, input):
+        output, _ = self.rnn(input)
+        output = self.fc(output)
+        return output.squeeze(1)
 
-        return self.fc(h.squeeze(0))
+
+
