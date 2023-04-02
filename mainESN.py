@@ -50,6 +50,15 @@ def train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_siz
         if epoch % 100 == 0:
             print(f'Epoch {epoch}: Discriminator Loss = {discriminator_loss.item()}, Generator Loss = {generator_loss.item()}')
 
+def test_gail(c, generator, reservoir, esn_output_scaling, esn_washout, esn_initial_state_scale):
+    # Generatorの性能テスト
+    generator.eval()
+    env = gym.make(c.gym_task)
+    total_reward = test_generator_performance(c, generator, reservoir, esn_output_scaling, esn_washout, esn_initial_state_scale, env, c.test_max_steps)
+    print(f'Total reward: {total_reward:.2f}')
+    env.close()
+
+
 def test_generator_performance(c, generator, env, max_steps=1000):
     state = env.reset()
     total_reward = 0.0
@@ -60,7 +69,7 @@ def test_generator_performance(c, generator, env, max_steps=1000):
 
     state_data = []
     render_data = [] # 最初の状態
-
+    # print(state.shape)
     generator.reset_states()
     while not done and step < max_steps:
         theta = env.state[0].copy()
@@ -78,7 +87,10 @@ def test_generator_performance(c, generator, env, max_steps=1000):
 
     savefigure(c,rewardlist)
     savegif(c,step,state_data,render_data)
-    return total_reward,step
+    return total_reward.item(),step
+
+
+
 
 def getTime():
     import datetime
@@ -142,25 +154,17 @@ def test_gail(c, generator):
     print(f'Mean reward: {mean_reward:.2f}')
     env.close()
 
-
-
 def main(c):
     expert_data = load_expert_data(c.expert_data)
 
-    state_dim = c.env.observation_space.shape[0]
-    action_dim = c.env.action_space.shape[0]
-    reservoir_dim = 100
-    # print(state_dim,action_dim,reservoir_dim)
+    generator = GeneratorESN(c.state_dim, c.action_dim, c.hidden_dim,
+                             alpha_i=0.8,alpha_r=0.9,beta_i=0.8,beta_r=0.1)
 
-    generator = GeneratorESN(state_dim, action_dim, reservoir_dim,
-                             alpha_i=0.8,alpha_r=0.5,beta_i=0.8,beta_r=0.1)
+    discriminator = DiscriminatorESN(c.state_dim, c.action_dim, c.hidden_dim,
+                                     alpha_i=0.8,alpha_r=0.9,beta_i=0.8,beta_r=0.1)
 
-    discriminator = DiscriminatorESN(state_dim, action_dim, reservoir_dim,
-                                     alpha_i=0.1,alpha_r=0.9,beta_i=0.8,beta_r=0.1)
-
-    train_gail(expert_data, generator, discriminator, num_epochs=c.num_epochs, batch_size=c.batch_size, 
-               g_lr=1e-4, d_lr=1e-4)
-
+    train_gail(expert_data, generator, discriminator, num_epochs=c.num_epochs,
+                batch_size=c.batch_size, g_lr=c.g_lr, d_lr=c.g_lr)
 
     test_gail(c, generator)
 
@@ -168,7 +172,7 @@ def main(c):
 class Config:
     def __init__(self) -> None:
         self.savefig = True
-        self.savegif = True
+        self.savegif = False
         self.figs = "./figs/"+getTime()+"reward.png"
         self.gifs = './gifs/'+getTime()+'Pendulum_random.gif'
         self.gym_task = 'Pendulum-v1'
@@ -181,12 +185,12 @@ class Config:
 
         self.num_epochs: int = 2000
         self.batch_size: int = 500
-        self.g_lr: float = 0.001
-        self.d_lr: float = 0.001
+        self.g_lr: float = 0.01
+        self.d_lr: float = 0.01
 
-        
         self.test_max_steps: int = 1000
 
 if __name__ == '__main__':
     c=Config()
     main(c)
+
