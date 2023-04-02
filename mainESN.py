@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
+
+
 def train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_size=500, 
                g_lr=1e-4, d_lr=1e-4):
     expert_states, expert_actions = expert_data
@@ -24,10 +26,13 @@ def train_gail(expert_data, generator, discriminator, num_epochs=1000, batch_siz
         # 訓練データからランダムにバッチをサンプリング
         idx = torch.randperm(expert_states.size(0))[:batch_size]
         expert_states_batch = expert_states[idx]
-        expert_actions_batch = expert_actions[idx]
+        expert_actions_batch = expert_actions[idx].view(batch_size, c.action_dim)
 
         # ジェネレータによる行動生成
         generator_actions_batch = generator(expert_states_batch)
+
+        # print(expert_actions_batch.shape, generator_actions_batch.shape)
+        # print(expert_actions_batch.shape,expert_actions_batch[0],generator_actions_batch[0])
         # ディスクリミネータによる報酬予測
         expert_preds = discriminator(expert_states_batch, expert_actions_batch)
         generator_preds = discriminator(expert_states_batch, generator_actions_batch)
@@ -75,19 +80,36 @@ def test_generator_performance(c, generator, env, max_steps=1000):
         theta = env.state[0].copy()
         action = generator(torch.Tensor(state).view(1,c.state_dim))
 
-        next_state, reward, done, info = env.step(action.detach().numpy())
+        if c.gym_task=='CartPole-v1':
+            toEnvAct = action.squeeze().detach().numpy()
+            toEnvAct = torch.round(torch.sigmoid(toEnvAct)).int()
+        if c.gym_task == 'MountainCar-v0':
+            toEnvAct = action.squeeze().detach().numpy()
+            
+            if toEnvAct < -0.33:
+                toEnvAct = 0
+            elif toEnvAct < 0.33:
+                toEnvAct = 1
+            elif 0.33 <= toEnvAct :
+                toEnvAct = 2
+            
+        else:
+            toEnvAct = action.squeeze(0).detach().numpy()
+
+        next_state, reward, done, info = env.step(toEnvAct)
         state = next_state
         total_reward += reward
         # print(action.shape)
 
         rewardlist.append(reward)
-        state_data.append((theta, state, action.item(), reward, done)) # 現在
-        render_data.append(env.render(mode='rgb_array')) # 次
+        state_data.append((theta, state, toEnvAct, reward, done)) # 現在
+        if c.render is True:
+            render_data.append(env.render(mode='rgb_array')) # 次
         step += 1
 
     savefigure(c,rewardlist)
     savegif(c,step,state_data,render_data)
-    return total_reward.item(),step
+    return total_reward,step
 
 
 
@@ -117,20 +139,23 @@ def savegif(c,T,state_data,render_data):
         theta, state, action, reward, terminated = state_data[t]
         rgb_data = render_data[t]
         
+        # print(state.shape)
         # 状態ラベルを作成
-        state_text = 't=' + str(t) + '\n'
-        state_text += f'$\\theta$={float(theta):5.2f}, '
-        state_text += f'$\cos(\\theta)$={float(state[0]):5.2f}, '
-        state_text += f'$\\sin(\\theta)$={float(state[1]):5.2f}\n'
-        state_text += f'velocity={float(state[2]):6.3f}\n'
-        if t < T:
-            state_text += f'action={action:5.2f}, '
-            state_text += f'reward={float(reward):5.2f}, '
-        else:
-            state_text += 'action=' + str(action) + ', '
-            state_text += 'reward=' + str(reward) + ', '
-        state_text += 'terminated:' + str(terminated)
-        
+        state_text = ''
+        if c.gym_task == 'Pendulum-v1':
+            state_text += 't=' + str(t) + '\n'
+            state_text += f'$\\theta$={float(theta):5.2f}, '
+            state_text += f'$\cos(\\theta)$={float(state[0]):5.2f}, '
+            state_text += f'$\\sin(\\theta)$={float(state[1]):5.2f}\n'
+            state_text += f'velocity={float(state[2]):6.3f}\n'
+            if t < T:
+                state_text += f'action={action:5.2f}, '
+                state_text += f'reward={float(reward):5.2f}, '
+            else:
+                state_text += 'action=' + str(action) + ', '
+                state_text += 'reward=' + str(reward) + ', '
+            state_text += 'terminated:' + str(terminated)
+            
         # ペンデュラムを描画
         plt.imshow(rgb_data)
         plt.xticks(ticks=[])
@@ -138,7 +163,7 @@ def savegif(c,T,state_data,render_data):
         plt.title(state_text, loc='left')
 
     # gif画像を作成
-    anime = FuncAnimation(fig=fig, func=update, frames=T, interval=10)
+    anime = FuncAnimation(fig=fig, func=update, frames=T, interval=200,cache_frame_data=False)
 
     # gif画像を保存
     anime.save(c.gifs, writer='pillow', dpi=100)
@@ -148,17 +173,26 @@ def test_gail(c, generator):
     # Generatorの性能テスト
     generator.eval()
     env = gym.make(c.gym_task)
-    total_reward,step = test_generator_performance(c, generator, env, c.test_max_steps)
-    mean_reward = total_reward / step 
-    print(f'Total reward: {total_reward:.2f}')
-    print(f'Mean reward: {mean_reward:.2f}')
+    steps = 0 
+    total_rewards = 0
+    goal = 0
+
+    testtimes = 100
+    for i in range(testtimes):
+        total_reward,step = test_generator_performance(c, generator, env, c.test_max_steps)
+        total_rewards += total_reward
+        steps += step
+        if total_reward > -200: goal += 1
+
+    print(f'Total reward: {total_rewards:.2f}')
+    print(f'Total goal: {goal}/{testtimes}')
     env.close()
 
 def main(c):
     expert_data = load_expert_data(c.expert_data)
 
     generator = GeneratorESN(c.state_dim, c.action_dim, c.hidden_dim,
-                             alpha_i=0.8,alpha_r=0.9,beta_i=0.8,beta_r=0.1)
+                             alpha_i=0.1,alpha_r=0.9,beta_i=0.9,beta_r=0.05)
 
     discriminator = DiscriminatorESN(c.state_dim, c.action_dim, c.hidden_dim,
                                      alpha_i=0.8,alpha_r=0.9,beta_i=0.8,beta_r=0.1)
@@ -171,22 +205,33 @@ def main(c):
 
 class Config:
     def __init__(self) -> None:
-        self.savefig = True
+        self.savefig = False
         self.savegif = False
+        self.render = False
         self.figs = "./figs/"+getTime()+"reward.png"
-        self.gifs = './gifs/'+getTime()+'Pendulum_random.gif'
-        self.gym_task = 'Pendulum-v1'
-        self.expert_data = './prepare/pendulum_expert_data.pkl'
-        self.env = gym.make(self.gym_task)
-        
-        self.state_dim = self.env.observation_space.shape[0]
-        self.action_dim = self.env.action_space.shape[0]
+
+        from ConfigTask import ConfigTask as taskcfg
+        task = taskcfg()
+        # task.set_CartPole()
+        # task.set_Pendulum()
+        task.set_MountainCar()
+
+        self.gifs = task.gifs
+        self.gym_task = task.gym_task
+        self.expert_data = task.expert_data
+
+        self.env = task.env
+
+        self.state_dim = task.state_dim
+        self.action_dim = task.action_dim
         self.hidden_dim = 500
 
-        self.num_epochs: int = 2000
-        self.batch_size: int = 500
-        self.g_lr: float = 0.01
-        self.d_lr: float = 0.01
+        # print(self.state_dim, self.action_dim, self.hidden_dim)
+
+        self.num_epochs: int = 100000
+        self.batch_size: int = 64
+        self.g_lr: float = 1e-4
+        self.d_lr: float = 1e-4
 
         self.test_max_steps: int = 1000
 

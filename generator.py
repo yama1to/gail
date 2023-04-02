@@ -82,6 +82,9 @@ class GeneratorESN(nn.Module):
             self.x = (1 - self.rho) * self.x + self.rho * x_new
         y = torch.mm(self.x, self.wo.t())
         # print(tuple(input_data.shape),tuple(self.x.shape), tuple(self.wo.t().shape))
+        
+        # y = torch.round(torch.sigmoid(y)).int()
+        # print(y)
         return y
 
 

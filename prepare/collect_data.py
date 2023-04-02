@@ -33,7 +33,8 @@ if __name__ == '__main__':
 
     # Create an ArgumentParser object
     parser = argparse.ArgumentParser(description='1 is Pendulum,\n\
-                                                    2 is CartPole-v1')
+                                                    2 is CartPole\n\
+                                                    3 is MountainCar')
 
     # Add an argument
     parser.add_argument('--task', type=str, help='Description of my argument')
@@ -44,14 +45,23 @@ if __name__ == '__main__':
     # Access the value of your argument
     task = int(args.task)
 
-    if task ==1:
-        env = gym.make('Pendulum-v1')
-        model = PPO.load('pretrained_ppo_pendulum')  # Load a pre-trained agent
-        expert_data = collect_expert_data(env, model, num_episodes=200, save_path='pendulum_expert_data.pkl')
-        print(f'Expert data saved: {len(expert_data[0])} state-action pairs')
-
+    if task == 1:
+        name = 'Pendulum-v1'
+        fname = 'pretrained_ppo_pendulum'
+        savepath = 'pendulum_expert_data.pkl'
     if task == 2:
-        env = gym.make('CartPole-v1')
-        model = PPO.load('pretrained_ppo_cartpole')  # Load a pre-trained agent
-        expert_data = collect_expert_data(env, model, num_episodes=200, save_path='cartpole_expert_data.pkl')
-        print(f'Expert data saved: {len(expert_data[0])} state-action pairs')
+        name = 'CartPole-v1'
+        fname = 'pretrained_ppo_cartpole'
+        savepath = 'cartpole_expert_data.pkl'
+
+    if task == 3 : 
+        name = 'MountainCar-v0'
+        fname = 'pretrained_ppo_mountaincar'
+        savepath = 'mountaincar_expert_data.pkl'
+
+    env = gym.make(name)
+    model = PPO.load(fname)  # Load a pre-trained agent
+    expert_data = collect_expert_data(env, model, num_episodes=200, save_path=savepath)
+    print(f'Expert data saved: {len(expert_data[0])} state-action pairs')
+
+

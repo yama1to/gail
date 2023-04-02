@@ -18,26 +18,23 @@ args = parser.parse_args()
 task = int(args.task)
 
 if task == 1:
-
-    # Create the environment
-    env = gym.make('Pendulum-v1')
-    env = DummyVecEnv([lambda: env])
-
-    # Train the model
-    model = PPO('MlpPolicy', env, verbose=1)
-    model.learn(total_timesteps=10000)
-
-    # Save the model to a file
-    model.save('pretrained_ppo_pendulum.zip')
-
+    name = 'Pendulum-v1'
+    fname = 'pretrained_ppo_pendulum.zip'
 if task == 2:
-    # Create the environment
-    env = gym.make('CartPole-v1')
-    env = DummyVecEnv([lambda: env])
+    name = 'CartPole-v1'
+    fname = 'pretrained_ppo_cartpole.zip'
 
-    # Train the model
-    model = PPO('MlpPolicy', env, verbose=1)
-    model.learn(total_timesteps=10000)
+if task == 3 : 
+    name = 'MountainCar-v0'
+    fname = 'pretrained_ppo_mountaincar.zip'
 
-    # Save the model to a file
-    model.save('pretrained_ppo_cartpole.zip')
+# Create the environment
+env = gym.make(name)
+env = DummyVecEnv([lambda: env])
+
+# Train the model
+model = PPO('MlpPolicy', env, verbose=1)
+model.learn(total_timesteps=100000)
+
+# Save the model to a file
+model.save(fname)

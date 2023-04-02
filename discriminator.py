@@ -84,7 +84,7 @@ class DiscriminatorESN(nn.Module):
 
     def forward(self, states, actions):
         with torch.no_grad():
-            x_new = self.activation(torch.mm(torch.cat([states, actions], dim=1), self.win.t()) + torch.mm(self.x.detach(), self.w))
+            x_new = self.activation(torch.matmul(torch.cat([states, actions], dim=1), self.win.t()) + torch.matmul(self.x.detach(), self.w))
             self.x = (1 - self.rho) * self.x + self.rho * x_new
         y = self.activation(torch.mm(self.x , self.wo.t()))
         return y
